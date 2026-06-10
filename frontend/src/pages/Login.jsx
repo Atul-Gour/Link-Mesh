@@ -82,7 +82,7 @@ export default function Login() {
                     textTransform: "uppercase",
                     marginBottom: "1.75rem"
                 }}>
-                    ⚡ Smart URL Shortener
+                    Smart URL Shortener
                 </div>
 
                 {/* Stats */}
@@ -93,7 +93,7 @@ export default function Login() {
                     marginBottom: "1.75rem"
                 }}>
                     {[
-                        { num: "10M+", label: "Links" },
+                        { num: "Custom", label: "Alias" },
                         { num: "99.9%", label: "Uptime" },
                         { num: "Live", label: "Analytics" }
                     ].map(({ num, label }) => (

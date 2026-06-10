@@ -15,6 +15,8 @@ import java.util.List;
 @Builder
 public class User {
 
+    public enum Role { FREE, PREMIUM }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -31,6 +33,11 @@ public class User {
     @Column(name = "picture_url")
     private String pictureUrl;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    @Builder.Default
+    private Role role = Role.FREE;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -40,8 +47,11 @@ public class User {
 
     @PrePersist
     public void prePersist() {
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
-        }
+        if (createdAt == null) createdAt = LocalDateTime.now();
+        if (role == null) role = Role.FREE;
+    }
+
+    public boolean isPremium() {
+        return Role.PREMIUM.equals(role);
     }
 }

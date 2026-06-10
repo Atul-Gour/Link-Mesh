@@ -8,6 +8,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 
 @Configuration
 @RequiredArgsConstructor
@@ -15,10 +16,10 @@ public class SecurityConfig {
 
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2LoginSuccessHandler successHandler;
+    private final ClientRegistrationRepository clientRegistrationRepository;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http)
-            throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
                 .cors(Customizer.withDefaults())
@@ -31,33 +32,28 @@ public class SecurityConfig {
                                 "/logout"
                         ).permitAll()
 
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/v1/url/*"
-                        ).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/url/*").permitAll()
 
-                        .requestMatchers(
-                                HttpMethod.POST,
-                                "/v1/url"
-                        ).authenticated()
-
-                        .requestMatchers(
-                                HttpMethod.DELETE,
-                                "/v1/url/*"
-                        ).authenticated()
+                        .requestMatchers(HttpMethod.POST, "/v1/url").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/v1/url/*").authenticated()
 
                         .requestMatchers(
                                 "/v1/url/my-urls",
-                                "/me"
+                                "/me",
+                                "/me/upgrade",
+                                "/me/downgrade"
                         ).authenticated()
 
                         .anyRequest().authenticated()
                 )
 
                 .oauth2Login(oauth -> oauth
-                        .userInfoEndpoint(user ->
-                                user.userService(customOAuth2UserService)
+                        .authorizationEndpoint(endpoint ->
+                                endpoint.authorizationRequestResolver(
+                                        new CustomAuthorizationRequestResolver(clientRegistrationRepository)
+                                )
                         )
+                        .userInfoEndpoint(user -> user.userService(customOAuth2UserService))
                         .successHandler(successHandler)
                 )
 

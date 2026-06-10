@@ -21,6 +21,7 @@ public class Url {
     @Column(name = "long_url", nullable = false)
     private String longUrl;
 
+    @Builder.Default
     @Column(nullable = false)
     private Long clickCount = 0L;
 

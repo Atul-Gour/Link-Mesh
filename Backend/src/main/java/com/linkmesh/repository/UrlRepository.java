@@ -22,6 +22,14 @@ public interface UrlRepository extends JpaRepository<Url, Long> {
 
     @Modifying
     @Query("""
+           UPDATE Url u
+           SET u.clickCount = u.clickCount + 1
+           WHERE u.shortUrl = :shortUrl
+           """)
+    int incrementClickCount(@Param("shortUrl") String shortUrl);
+
+    @Modifying
+    @Query("""
            DELETE FROM Url u
            WHERE u.expiresAt IS NOT NULL
              AND u.expiresAt < :now

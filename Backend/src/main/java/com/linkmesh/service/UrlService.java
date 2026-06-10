@@ -5,10 +5,10 @@ import com.linkmesh.dto.UserUrlResponse;
 import com.linkmesh.entity.Url;
 import com.linkmesh.entity.User;
 import com.linkmesh.exception.AliasAlreadyExistsException;
+import com.linkmesh.exception.PremiumRequiredException;
 import com.linkmesh.exception.UrlExpiredException;
 import com.linkmesh.exception.UrlNotFoundException;
 import com.linkmesh.repository.UrlRepository;
-import com.linkmesh.repository.UserRepository;
 import com.linkmesh.util.Base62Encoder;
 import com.linkmesh.util.SnowflakeIdGenerator;
 import lombok.RequiredArgsConstructor;
@@ -46,12 +46,22 @@ public class UrlService {
     @Transactional
     public UrlDto.CreateResponse createShortUrl(UrlDto.CreateRequest request) {
 
-        // Resolve optional user by ID
         User user = customOAuth2UserService.getCurrentUser();
+
+        // --- Premium gate ---
+        boolean hasCustomAlias = request.customAlias() != null && !request.customAlias().isBlank();
+        boolean hasCustomExpiry = request.expiryDays() != null && request.expiryDays() != defaultExpiryDays;
+
+        if (hasCustomAlias && !user.isPremium()) {
+            throw new PremiumRequiredException("Custom Alias");
+        }
+        if (hasCustomExpiry && !user.isPremium()) {
+            throw new PremiumRequiredException("Custom Expiry");
+        }
 
         // Determine short code
         String shortCode;
-        if (request.customAlias() != null && !request.customAlias().isBlank()) {
+        if (hasCustomAlias) {
             shortCode = request.customAlias();
             if (urlRepository.existsByShortUrl(shortCode)) {
                 throw new AliasAlreadyExistsException(shortCode);
@@ -60,8 +70,10 @@ public class UrlService {
             shortCode = generateUniqueShortCode();
         }
 
-        // Expiry
-        int ttlDays = request.expiryDays() != null ? request.expiryDays() : defaultExpiryDays;
+        // Expiry — FREE users always get the default
+        int ttlDays = (request.expiryDays() != null && user.isPremium())
+                ? request.expiryDays()
+                : defaultExpiryDays;
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(ttlDays);
 
         // Persist
@@ -88,7 +100,8 @@ public class UrlService {
             urlRepository.save(url);
         }
 
-        log.info("Created: {} → {}", shortCode, request.longUrl());
+        log.info("Created: {} → {} (user={}, role={})", shortCode, request.longUrl(),
+                user.getEmail(), user.getRole());
 
         return new UrlDto.CreateResponse(
                 baseUrl + "/v1/url/" + shortCode,
@@ -101,9 +114,7 @@ public class UrlService {
 
     @Transactional(readOnly = true)
     public List<UserUrlResponse> getMyUrls() {
-
         User user = customOAuth2UserService.getCurrentUser();
-
         return urlRepository.findAllByUserId(user.getId())
                 .stream()
                 .map(url -> new UserUrlResponse(
@@ -123,13 +134,15 @@ public class UrlService {
     public String getLongUrl(String shortUrl) {
         Url url = urlRepository.findByShortUrl(shortUrl)
                 .orElseThrow(() -> new UrlNotFoundException(shortUrl));
-
         if (url.isExpired()) throw new UrlExpiredException(shortUrl);
-
-        url.setClickCount(url.getClickCount() + 1);
-        urlRepository.save(url);
-
         return url.getLongUrl();
+    }
+
+    // ── Click count ───────────────────────────────────────────
+
+    @Transactional
+    public void incrementClickCount(String shortUrl) {
+        urlRepository.incrementClickCount(shortUrl);
     }
 
     // ── Cache eviction ────────────────────────────────────────
@@ -137,6 +150,20 @@ public class UrlService {
     @CacheEvict(value = "urls", key = "#shortUrl")
     public void evictFromCache(String shortUrl) {
         log.debug("Cache evicted for: {}", shortUrl);
+    }
+
+    // ── Delete ────────────────────────────────────────────────
+
+    @Transactional
+    public void deleteUrl(String shortUrl) {
+        User currentUser = customOAuth2UserService.getCurrentUser();
+        Url url = urlRepository.findByShortUrl(shortUrl)
+                .orElseThrow(() -> new UrlNotFoundException(shortUrl));
+        if (url.getUser() == null || !url.getUser().getId().equals(currentUser.getId())) {
+            throw new RuntimeException("You are not the owner of this URL");
+        }
+        urlRepository.delete(url);
+        evictFromCache(shortUrl);
     }
 
     // ── Helper ────────────────────────────────────────────────
@@ -148,26 +175,5 @@ public class UrlService {
             log.warn("Short code collision attempt {}: {}", attempt + 1, code);
         }
         throw new IllegalStateException("Failed to generate unique short code after 3 attempts");
-    }
-
-    @Transactional
-    public void deleteUrl(String shortUrl) {
-
-        User currentUser = customOAuth2UserService.getCurrentUser();
-
-        Url url = urlRepository.findByShortUrl(shortUrl)
-                .orElseThrow(() ->
-                        new UrlNotFoundException(shortUrl));
-
-        if (url.getUser() == null ||
-                !url.getUser().getId().equals(currentUser.getId())) {
-
-            throw new RuntimeException(
-                    "You are not the owner of this URL");
-        }
-
-        urlRepository.delete(url);
-
-        evictFromCache(shortUrl);
     }
 }

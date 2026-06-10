@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     google_id       VARCHAR(100) NOT NULL,
     name            VARCHAR(255) NOT NULL,
     picture_url     VARCHAR(500) NULL,
+    role            ENUM('FREE','PREMIUM') NOT NULL DEFAULT 'FREE',
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),

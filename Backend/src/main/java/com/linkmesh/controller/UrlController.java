@@ -34,9 +34,13 @@ public class UrlController {
     }
 
     @GetMapping("/{shortUrl}")
-    public ResponseEntity<Void> redirect(@PathVariable String shortUrl) {
-        log.info("GET /v1/url/{}", shortUrl);
+    public ResponseEntity<Void> redirect(
+            @PathVariable String shortUrl) {
+
         String longUrl = urlService.getLongUrl(shortUrl);
+
+        urlService.incrementClickCount(shortUrl);
+
         return ResponseEntity.status(HttpStatus.FOUND)
                 .header(HttpHeaders.LOCATION, longUrl)
                 .build();

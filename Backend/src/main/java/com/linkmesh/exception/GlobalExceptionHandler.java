@@ -33,6 +33,12 @@ public class GlobalExceptionHandler {
                 .body(new UrlDto.ErrorResponse(409, "Conflict", ex.getMessage()));
     }
 
+    @ExceptionHandler(PremiumRequiredException.class)
+    public ResponseEntity<UrlDto.ErrorResponse> handlePremiumRequired(PremiumRequiredException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new UrlDto.ErrorResponse(403, "Premium Required", ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<UrlDto.ErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
         String details = ex.getBindingResult().getFieldErrors()
